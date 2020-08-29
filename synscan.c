@@ -8,6 +8,9 @@
 #include <stdbool.h>
 
 #include "timer.h"
+#include "scan_config.h"
+
+extern struct scan_config scan_opt;
 
 int answer = 0;					//scan timeout flag
 
@@ -16,14 +19,14 @@ void packet_handler(u_char *args, const struct pcap_pkthdr *header, const u_char
 	
 	if (tcp->th_flags == 0x14) {
 		printf("Port %d is closed.\n", ntohs(tcp->th_sport));
-		answer = 0;
+		answer--;
 	} else if (tcp->th_flags == 0x12) {
 		printf("Port %d is opened.\n", ntohs(tcp->th_sport));
-		answer = 0;
+		answer--;
 	}
 }
 
-int syn_scan(char *char_ipaddr, int port) {
+int syn_scan(char *char_ipaddr) {
 
 	const char *device = "wlan0";		//device for sending
 	in_addr_t ipaddr;			//target IP address
@@ -39,6 +42,7 @@ int syn_scan(char *char_ipaddr, int port) {
 	libnet_ptag_t tcp = 0, ipv4 = 0;	//libnet protocol blocks
 	struct timespec scan_start, scan_end;
 	double delta;
+	int port;
 
 
 	//TODO: Better device handling
@@ -96,7 +100,8 @@ int syn_scan(char *char_ipaddr, int port) {
 
 	libnet_seed_prand(l);
 
-	//for (int i=0; i<port_num; i++) {
+	for (int i=0; i < scan_opt.port_num; i++) {
+		port = scan_opt.first_port + i;
 
 		/* build TCP and IP headers */
 		tcp = libnet_build_tcp(libnet_get_prand(LIBNET_PRu16),	//src port
@@ -143,14 +148,13 @@ int syn_scan(char *char_ipaddr, int port) {
 			fprintf(stderr, "Unable to send packet: %s\n", libnet_geterror(l));
 			return -1;
 		}
-//	}
+	}
 
 
-	
 	measure_time(&scan_start, 1);
 
 	/* listen for answer */
-	answer = 1;
+	answer = scan_opt.port_num;
 	while(answer) {
 		pcap_dispatch(handle, -1, packet_handler, NULL);
 
@@ -159,7 +163,7 @@ int syn_scan(char *char_ipaddr, int port) {
 
 		if (delta > 2.0) {
 			answer = 0;
-			printf("Port %d is filtered.\n", port);//TODO
+			printf("Port [TODO] is filtered.\n");//TODO
 		}
 	}
 
