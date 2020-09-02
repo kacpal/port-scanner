@@ -8,13 +8,7 @@
 #include "synscan.h"
 #include "scan_config.h"
 
-#define SCAN_CONFIG_H_INCLUDED
-#define	CHAR_BUFFER_LEN	64
-#define MAX_PORT_NUM	65535
-
-
-struct scan_config scan_opt;
-
+scan_opt_t scan_opt;
 
 void usage(char *name) {
 	printf("Usage: %s <ip address> [options]\n", name);
@@ -24,9 +18,9 @@ void usage(char *name) {
 	exit(1);
 }
 
-void scan_args(int argc, char *argv[]) {
+void scan_args(int argc, char *argv[], scan_opt_t *scan_opt) {
 	int opt;
-	long port_num = 0;
+	int port_num = 1;
 	char char_buffer[CHAR_BUFFER_LEN], *char_ptr;
 
 	while((opt = getopt(argc, argv, ":p:h")) != -1) {
@@ -47,37 +41,44 @@ void scan_args(int argc, char *argv[]) {
 		}
 	}
 	
-	//when user provides port range:
-	if (char_ptr = strchr(char_buffer, '-')) {
-		long first_port, last_port;
+	memset(scan_opt->port, 0, sizeof(int) * PORT_NUM);
 
-		first_port = strtol(char_buffer, &char_ptr, 10);
+	/* find occurance of the dash symbol */
+	if (char_ptr = strchr(char_buffer, '-')) {
+		int first_port, last_port;
+
+		first_port = (int) strtol(char_buffer, &char_ptr, 10);
 		char_ptr++;
-		last_port = strtol(char_ptr, NULL, 10);
+		last_port = (int) strtol(char_ptr, NULL, 10);
 		port_num = (last_port - first_port) + 1;
 
-		if (port_num < 1 || first_port < 1 || last_port > MAX_PORT_NUM) {
+		/* safety sanitization */
+		if (port_num < 1 || first_port < 1 || last_port >= PORT_NUM) {
 			printf("Invalid port range.\n");
 			usage(argv[0]);
 			exit(-1);
 		}
-		scan_opt.first_port = first_port;
-		scan_opt.last_port = last_port;
-		scan_opt.port_num = port_num;
 
-	//when user provided one port:
+		/* set adresses that are meant to scan to 1 */
+		for (int i=0; i < port_num; i++) {
+			scan_opt->port[first_port + i] = 1;
+		}
+		scan_opt->port_num = port_num;
+
+	/* if dash was not found */
 	} else {
-		long port;
+		int port;
 
-		port = strtol(char_buffer, NULL, 10);
+		port = (int) strtol(char_buffer, NULL, 10);
 
-		if (port < 0 || port > MAX_PORT_NUM) {
+		if (port < 0 || port >= PORT_NUM) {
 			printf("Invalid port number.\n");
 			usage(argv[0]);
 			exit(-1);
 		}
-		scan_opt.first_port = port;
-		scan_opt.port_num = 1;
+
+		scan_opt->port[port] = 1;
+		scan_opt->port_num = 1;
 	}
 }
 
@@ -89,12 +90,12 @@ int main(int argc, char *argv[]) {
 	if (argc < 3)
 		usage(argv[0]);
 
-	scan_args(argc, argv);
+	scan_args(argc, argv, &scan_opt);
 
 	measure_time(&program_start, 0);
 
 	/* perform the scan */
-	if (syn_scan(argv[3]) == -1)
+	if (syn_scan(argv[3], &scan_opt) == -1)
 		exit(1);
 
 	/* display scan time */

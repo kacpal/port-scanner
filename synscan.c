@@ -8,9 +8,9 @@
 #include <stdbool.h>
 
 #include "timer.h"
+#include "synscan.h"
 #include "scan_config.h"
 
-extern struct scan_config scan_opt;
 
 int answer = 0;					//scan timeout flag
 
@@ -26,7 +26,7 @@ void packet_handler(u_char *args, const struct pcap_pkthdr *header, const u_char
 	}
 }
 
-int syn_scan(char *char_ipaddr) {
+int syn_scan(char *char_ipaddr, scan_opt_t *scan_opt) {
 
 	const char *device = "wlan0";		//device for sending
 	in_addr_t ipaddr;			//target IP address
@@ -100,61 +100,64 @@ int syn_scan(char *char_ipaddr) {
 
 	libnet_seed_prand(l);
 
-	for (int i=0; i < scan_opt.port_num; i++) {
-		port = scan_opt.first_port + i;
+	for (int i=0; i < PORT_NUM; i++) {
+		if (scan_opt->port[i] == 1) {
+			port = i;
 
-		/* build TCP and IP headers */
-		tcp = libnet_build_tcp(libnet_get_prand(LIBNET_PRu16),	//src port
-				port,					//destination port
-				libnet_get_prand(LIBNET_PRu16),		//sequence number
-				0,					//acknowledgement
-				TH_SYN,					//control flag
-				7,					//window
-				0,					//checksum
-				0,					//urgent
-				LIBNET_TCP_H,				//header length
-				NULL,					//payload
-				0,					//payload length
-				l,					//libnet context
-				tcp);					//protocol tag
+			/* build TCP and IP headers */
+			tcp = libnet_build_tcp(libnet_get_prand(LIBNET_PRu16),	//src port
+					port,					//destination port
+					libnet_get_prand(LIBNET_PRu16),		//sequence number
+					0,					//acknowledgement
+					TH_SYN,					//control flag
+					7,					//window
+					0,					//checksum
+					0,					//urgent
+					LIBNET_TCP_H,				//header length
+					NULL,					//payload
+					0,					//payload length
+					l,					//libnet context
+					tcp);					//protocol tag
 
-		if (tcp == -1) {
-			fprintf(stderr, "Unable to build TCP header: %s\n", libnet_geterror(l));
-			return -1;
-		}
+			if (tcp == -1) {
+				fprintf(stderr, "Unable to build TCP header: %s\n", libnet_geterror(l));
+				return -1;
+			}
 
-		ipv4 = libnet_build_ipv4(LIBNET_TCP_H + LIBNET_IPV4_H,	//length
-				0,					//TOS	
-				libnet_get_prand(LIBNET_PRu16),		//IP ID
-				0,					//frag offset
-				127,					//TTL
-				IPPROTO_TCP,				//upper layer protocol
-				0,					//checksum
-				my_ipaddr,				//src IP
-				ipaddr,					//dest IP
-				NULL,					//payload
-				0,					//payload length
-				l,					//libnet context
-				ipv4);					//protocol tag
-		
-		if (ipv4 == -1) {
-			fprintf(stderr, "Unable to build IPv4 header: %s\n", libnet_geterror(l));
-			return -1;
-		}
+			ipv4 = libnet_build_ipv4(LIBNET_TCP_H + LIBNET_IPV4_H,	//length
+					0,					//TOS	
+					libnet_get_prand(LIBNET_PRu16),		//IP ID
+					0,					//frag offset
+					127,					//TTL
+					IPPROTO_TCP,				//upper layer protocol
+					0,					//checksum
+					my_ipaddr,				//src IP
+					ipaddr,					//dest IP
+					NULL,					//payload
+					0,					//payload length
+					l,					//libnet context
+					ipv4);					//protocol tag
+			
+			if (ipv4 == -1) {
+				fprintf(stderr, "Unable to build IPv4 header: %s\n", libnet_geterror(l));
+				return -1;
+			}
 
 
-		/* send the packet */
-		if (libnet_write(l) == -1) {
-			fprintf(stderr, "Unable to send packet: %s\n", libnet_geterror(l));
-			return -1;
+			/* send the packet */
+			if (libnet_write(l) == -1) {
+				fprintf(stderr, "Unable to send packet: %s\n", libnet_geterror(l));
+				return -1;
+			}
 		}
 	}
 
 
 	measure_time(&scan_start, 1);
 
+	//TODO better output
 	/* listen for answer */
-	answer = scan_opt.port_num;
+	answer = scan_opt->port_num;
 	while(answer) {
 		pcap_dispatch(handle, -1, packet_handler, NULL);
 
@@ -163,7 +166,7 @@ int syn_scan(char *char_ipaddr) {
 
 		if (delta > 2.0) {
 			answer = 0;
-			printf("Port [TODO] is filtered.\n");//TODO
+			printf("Port [TODO] is filtered.\n");//TODO display filtered ports
 		}
 	}
 
