@@ -18,7 +18,7 @@ void packet_handler(u_char *args, const struct pcap_pkthdr *header, const u_char
 	struct tcphdr *tcp = (struct tcphdr *) (packet + LIBNET_IPV4_H + LIBNET_ETH_H); 
 	
 	if (tcp->th_flags == 0x14) {
-		printf("Port %d is closed.\n", ntohs(tcp->th_sport));
+		/* printf("Port %d is closed.\n", ntohs(tcp->th_sport)); */
 		answer--;
 	} else if (tcp->th_flags == 0x12) {
 		printf("Port %d is opened.\n", ntohs(tcp->th_sport));
@@ -28,7 +28,7 @@ void packet_handler(u_char *args, const struct pcap_pkthdr *header, const u_char
 
 int syn_scan(char *char_ipaddr, scan_opt_t *scan_opt) {
 
-	const char *device = "wlan0";		//device for sending
+	const char *device = scan_opt->device;
 	in_addr_t ipaddr;			//target IP address
 	u_int32_t my_ipaddr;			//host IP address
 	libnet_t *l;				//libnet context
@@ -45,7 +45,6 @@ int syn_scan(char *char_ipaddr, scan_opt_t *scan_opt) {
 	int port;
 
 
-	//TODO: Better device handling
 	/* libnet initial setup */
 	l = libnet_init(LIBNET_RAW4, device, libnet_errbuf);
 	if (l == NULL) {
@@ -63,6 +62,7 @@ int syn_scan(char *char_ipaddr, scan_opt_t *scan_opt) {
 	my_ipaddr = libnet_get_ipaddr4(l);
 	if (my_ipaddr == -1) {
 		fprintf(stderr, "Unable to get the host IP: %s", libnet_geterror(l));
+		printf("Try selecting the device manually with '-d'.\n");
 		return -1;
 	}
 

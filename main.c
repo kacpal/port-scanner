@@ -14,30 +14,40 @@ void usage(char *name) {
 	printf("Usage: %s <ip address> [options]\n", name);
 	printf("Options:\n"
 		"\t-p <port range>\n"
-		"\t-h help\n"		);
+		"\t-h Help\n"
+		"\t-d Select the device\n"	 );
 	exit(1);
 }
 
 void scan_args(int argc, char *argv[], scan_opt_t *scan_opt) {
 	int opt;
 	int port_num = 1;
-	char char_buffer[CHAR_BUFFER_LEN], *char_ptr;
+	char char_buffer[CHAR_BUFFER_LEN] = "0", *char_ptr;
 
-	while((opt = getopt(argc, argv, ":p:h")) != -1) {
+	while((opt = getopt(argc, argv, "p:hd:")) != -1) {
 		switch(opt) {
 			case 'p':
 				if (strlen(optarg) >= CHAR_BUFFER_LEN) {
 					printf("Provided option is too long.\n");
 					exit(-1);
 				}
-				strcpy(char_buffer, optarg);
+				strncpy(char_buffer, optarg, strlen(optarg));
 				break;
 			case 'h':
 				usage(argv[0]);
 				exit(0);
+				break;
+			case 'd':
+				if (strlen(optarg) > DEVICE_NAME_LEN) {
+					printf("Device name is too long.\n");
+					exit(-1);
+				}
+				strncpy(scan_opt->device, optarg, strlen(optarg));
+				break;
 			default:
 				usage(argv[0]);
 				exit(-1);
+				break;
 		}
 	}
 	
@@ -71,7 +81,7 @@ void scan_args(int argc, char *argv[], scan_opt_t *scan_opt) {
 
 		port = (int) strtol(char_buffer, NULL, 10);
 
-		if (port < 0 || port >= PORT_NUM) {
+		if (port < 1 || port >= PORT_NUM) {
 			printf("Invalid port number.\n");
 			usage(argv[0]);
 			exit(-1);
@@ -80,22 +90,26 @@ void scan_args(int argc, char *argv[], scan_opt_t *scan_opt) {
 		scan_opt->port[port] = 1;
 		scan_opt->port_num = 1;
 	}
+
 }
 
 int main(int argc, char *argv[]) {
 	struct timespec program_start, program_end;
 	double delta;
 	int port;
+	char host[64];
 
 	if (argc < 3)
 		usage(argv[0]);
+
+	strcpy(host, argv[1]);
 
 	scan_args(argc, argv, &scan_opt);
 
 	measure_time(&program_start, 0);
 
 	/* perform the scan */
-	if (syn_scan(argv[3], &scan_opt) == -1)
+	if (syn_scan(host, &scan_opt) == -1)
 		exit(1);
 
 	/* display scan time */
