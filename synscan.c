@@ -12,17 +12,45 @@
 #include "scan_config.h"
 
 
-int answer = 0;					//scan timeout flag
+int answer;				//scan flag
+struct timespec scan_start, scan_end;
+double delta;
+pcap_t *handle;				//pcap handle
 
 void packet_handler(u_char *args, const struct pcap_pkthdr *header, const u_char *packet) {
+	/* convert arguments from required u_char to typedef scan_opt_t */
+	scan_opt_t *scan_opt = (scan_opt_t *) args;
+
 	struct tcphdr *tcp = (struct tcphdr *) (packet + LIBNET_IPV4_H + LIBNET_ETH_H); 
+	int port = ntohs(tcp->th_sport);
 	
 	if (tcp->th_flags == 0x14) {
-		/* printf("Port %d is closed.\n", ntohs(tcp->th_sport)); */
+		printf("Port %d is closed.\n", port);
+		scan_opt->port[port] = 0;
 		answer--;
 	} else if (tcp->th_flags == 0x12) {
-		printf("Port %d is opened.\n", ntohs(tcp->th_sport));
+		printf("Port %d is opened.\n", port);
+		scan_opt->port[port] = 0;
 		answer--;
+	}
+}
+
+void packet_listener(scan_opt_t *scan_opt) {
+
+	while (answer) {
+		pcap_dispatch(handle, -1, packet_handler, (u_char *)scan_opt);
+
+		measure_time(&scan_end, 1);
+		delta = calc_delta(&scan_start, &scan_end);
+
+		/* after 2s set the port status to filtered */
+		if (delta > 2.0) {
+			for (int i=0; i < PORT_NUM; i++) {
+				if (scan_opt->port[i] == 1)
+					printf("Port %d is filtered.\n", i);
+				answer = 0;
+			}
+		}
 	}
 }
 
@@ -34,14 +62,11 @@ int syn_scan(char *char_ipaddr, scan_opt_t *scan_opt) {
 	libnet_t *l;				//libnet context
 	char libnet_errbuf[LIBNET_ERRBUF_SIZE];	//libnet error buffer
 	char pcap_errbuf[PCAP_ERRBUF_SIZE];	//pcap error buffer
-	pcap_t *handle;				//pcap handle
 	char *filter =
 		"(tcp[13] == 0x14) || (tcp[13] == 0x12)";	//(SYN and RST) or ACK flags are set
        	bpf_u_int32 netp, maskp;		//netmask and IP
 	struct bpf_program fp;			//compiled filter	
 	libnet_ptag_t tcp = 0, ipv4 = 0;	//libnet protocol blocks
-	struct timespec scan_start, scan_end;
-	double delta;
 	int port;
 
 
@@ -72,7 +97,7 @@ int syn_scan(char *char_ipaddr, scan_opt_t *scan_opt) {
 		fprintf(stderr, "Warning: NULL device.\n");
 	}
 
-	handle = pcap_open_live(device, 1500, 0, 500, pcap_errbuf);
+	handle = pcap_open_live(device, 1500, 0, 100, pcap_errbuf);
 	if (handle == NULL) {
 		fprintf(stderr, "Unable to open the device: %s\n", pcap_errbuf);
 		return -1;
@@ -155,21 +180,9 @@ int syn_scan(char *char_ipaddr, scan_opt_t *scan_opt) {
 
 	measure_time(&scan_start, 1);
 
-	//TODO better output
-	/* listen for answer */
 	answer = scan_opt->port_num;
-	while(answer) {
-		pcap_dispatch(handle, -1, packet_handler, NULL);
-
-		measure_time(&scan_end, 1);
-		delta = calc_delta(&scan_start, &scan_end);
-
-		if (delta > 2.0) {
-			answer = 0;
-			printf("Port [TODO] is filtered.\n");//TODO display filtered ports
-		}
-	}
-
+	packet_listener(scan_opt);
+	
 	libnet_destroy(l);
 	return 0;
 }
