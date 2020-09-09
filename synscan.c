@@ -25,11 +25,11 @@ void packet_handler(u_char *args, const struct pcap_pkthdr *header, const u_char
 	int port = ntohs(tcp->th_sport);
 	
 	if (tcp->th_flags == 0x14) {
-		printf("Port %d is closed.\n", port);
+		printf("%d\tclosed\n", port);
 		scan_opt->port[port] = 0;
 		answer--;
 	} else if (tcp->th_flags == 0x12) {
-		printf("Port %d is opened.\n", port);
+		printf("%d\topened\n", port);
 		scan_opt->port[port] = 0;
 		answer--;
 	}
@@ -47,7 +47,7 @@ void packet_listener(scan_opt_t *scan_opt) {
 		if (delta > 2.0) {
 			for (int i=0; i < PORT_NUM; i++) {
 				if (scan_opt->port[i] == 1)
-					printf("Port %d is filtered.\n", i);
+					printf("%d\tfiltered\n", i);
 				answer = 0;
 			}
 		}
@@ -68,7 +68,6 @@ int syn_scan(char *char_ipaddr, scan_opt_t *scan_opt) {
 	struct bpf_program fp;			//compiled filter	
 	libnet_ptag_t tcp = 0, ipv4 = 0;	//libnet protocol blocks
 	int port;
-
 
 	/* libnet initial setup */
 	l = libnet_init(LIBNET_RAW4, device, libnet_errbuf);
@@ -179,6 +178,10 @@ int syn_scan(char *char_ipaddr, scan_opt_t *scan_opt) {
 
 
 	measure_time(&scan_start, 1);
+
+	printf("======================\n"
+			"PORT\tSTATE\n"
+			"======================\n");
 
 	answer = scan_opt->port_num;
 	packet_listener(scan_opt);

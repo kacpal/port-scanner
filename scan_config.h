@@ -16,10 +16,15 @@
 #define DEVICE_NAME_LEN	64
 
 
-typedef struct{
+typedef struct {
 	int port[PORT_NUM];	//array for ports: 0 = do not scan; 1 = scan
 	int port_num;		//number of ports
 	char device[DEVICE_NAME_LEN];	//device name
 } scan_opt_t;
+
+typedef struct {
+	int port;
+	char state[24];
+} results;
 
 #endif
