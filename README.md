@@ -32,4 +32,6 @@ PORT    STATE
 28      closed
 27      closed
 29      closed
+
+Scan completed after 0.34s.
 ```
